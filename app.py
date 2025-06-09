@@ -52,13 +52,14 @@ def register():
     email = data['email']
     password = data['password']
     phone = data['phone']
+    role = data.get('role', 'user')  # 👈 Use 'user' by default
 
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        INSERT INTO users (name, student_id, email, password, phone)
-        VALUES (%s, %s, %s, %s, %s)
-    """, (name, student_id, email, password, phone))
+        INSERT INTO users (name, student_id, email, password, phone, role)
+        VALUES (%s, %s, %s, %s, %s, %s)
+    """, (name, student_id, email, password, phone, role))
     conn.commit()
     cursor.close()
     conn.close()
