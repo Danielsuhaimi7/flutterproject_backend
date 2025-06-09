@@ -167,6 +167,42 @@ def get_user_reservation():
     else:
         return jsonify({'status': 'fail', 'message': 'No reservation found'})
 
+@app.route('/user_reservations', methods=['POST'])
+def user_reservations():
+    data = request.json
+    student_id = data.get('student_id')
+
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT slot_code, date, time, duration 
+        FROM reservations 
+        WHERE student_id = %s 
+        ORDER BY date DESC, time DESC
+    """, (student_id,))
+    results = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    return jsonify(results)
+
+@app.route('/user_reservation_details', methods=['POST'])
+def user_reservation_details():
+    data = request.json
+    student_id = data['student_id']
+
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT slot_code, date, time, duration
+        FROM reservations
+        WHERE student_id = %s
+    """, (student_id,))
+    reservations = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    return jsonify({'reservations': reservations})
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
