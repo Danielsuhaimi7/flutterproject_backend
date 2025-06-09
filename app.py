@@ -204,16 +204,18 @@ def user_reservation_details():
     cursor.close()
     conn.close()
 
-    # Serialize safely for JSON
-    def serialize_value(value):
+    # ✅ Updated: Serialize safely and format time to AM/PM
+    def serialize_value(key, value):
         if isinstance(value, timedelta):
             return int(value.total_seconds() // 3600)
         elif isinstance(value, (datetime, date, time)):
+            if key == "time":
+                return value.strftime('%I:%M %p')  # e.g., 06:00 PM
             return value.isoformat()
         return value
 
     reservations = [
-        {k: serialize_value(v) for k, v in row.items()}
+        {k: serialize_value(k, v) for k, v in row.items()}
         for row in raw_reservations
     ]
 
