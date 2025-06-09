@@ -5,6 +5,7 @@ import os
 import pickle
 import numpy as np
 from werkzeug.utils import secure_filename
+from datetime import timedelta, date, time, datetime
 
 app = Flask(__name__)
 CORS(app)
@@ -52,7 +53,7 @@ def register():
     email = data['email']
     password = data['password']
     phone = data['phone']
-    role = data.get('role', 'user')  # 👈 Use 'user' by default
+    role = data.get('role', 'user')  # Default to 'user'
 
     conn = get_connection()
     cursor = conn.cursor()
@@ -145,7 +146,7 @@ def predict_slot():
     except Exception as e:
         print("Predict Error:", e)
         return jsonify({"error": str(e)}), 500
-    
+
 @app.route('/get_user_reservation', methods=['POST'])
 def get_user_reservation():
     data = request.json
@@ -184,7 +185,7 @@ def user_reservations():
     cursor.close()
     conn.close()
 
-    return jsonify(results)
+    return jsonify({"reservations": results})
 
 @app.route('/user_reservation_details', methods=['POST'])
 def user_reservation_details():
@@ -199,9 +200,22 @@ def user_reservation_details():
         WHERE student_id = %s
         ORDER BY date DESC, time DESC
     """, (student_id,))
-    reservations = cursor.fetchall()
+    raw_reservations = cursor.fetchall()
     cursor.close()
     conn.close()
+
+    # Serialize safely for JSON
+    def serialize_value(value):
+        if isinstance(value, timedelta):
+            return int(value.total_seconds() // 3600)
+        elif isinstance(value, (datetime, date, time)):
+            return value.isoformat()
+        return value
+
+    reservations = [
+        {k: serialize_value(v) for k, v in row.items()}
+        for row in raw_reservations
+    ]
 
     return jsonify({"reservations": reservations})
 
