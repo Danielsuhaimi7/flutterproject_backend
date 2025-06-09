@@ -197,12 +197,13 @@ def user_reservation_details():
         SELECT slot_code, date, time, duration
         FROM reservations
         WHERE student_id = %s
+        ORDER BY date DESC, time DESC
     """, (student_id,))
     reservations = cursor.fetchall()
     cursor.close()
     conn.close()
 
-    return jsonify({'reservations': reservations})
+    return jsonify({"reservations": reservations})
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
