@@ -145,6 +145,28 @@ def predict_slot():
     except Exception as e:
         print("Predict Error:", e)
         return jsonify({"error": str(e)}), 500
+    
+@app.route('/get_user_reservation', methods=['POST'])
+def get_user_reservation():
+    data = request.json
+    student_id = data['student_id']
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT slot_code FROM reservations
+        WHERE student_id = %s
+        ORDER BY id DESC LIMIT 1
+    """, (student_id,))
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+
+    if row:
+        return jsonify({'status': 'success', 'slot_code': row[0]})
+    else:
+        return jsonify({'status': 'fail', 'message': 'No reservation found'})
+
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
