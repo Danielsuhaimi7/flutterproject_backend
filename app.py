@@ -30,7 +30,7 @@ def login():
 
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT student_id, role FROM users WHERE student_id=%s AND password=%s", (student_id, password))
+    cursor.execute("SELECT name, student_id, role FROM users WHERE student_id=%s AND password=%s", (student_id, password))
     user = cursor.fetchone()
     cursor.close()
     conn.close()
@@ -39,8 +39,9 @@ def login():
         return jsonify({
             "status": "success",
             "message": "Login successful",
-            "student_id": user[0],
-            "role": user[1]
+            "name": user[0],
+            "student_id": user[1],
+            "role": user[2]
         })
     else:
         return jsonify({"status": "fail", "message": "Invalid credentials"})
