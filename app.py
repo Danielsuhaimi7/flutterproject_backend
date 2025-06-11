@@ -211,7 +211,7 @@ def user_reservation_details():
             return int(value.total_seconds() // 3600)
         elif isinstance(value, (datetime, date, time)):
             if key == "time":
-                return value.strftime('%I:%M %p')  # e.g., 06:00 PM
+                return value.strftime('%I:%M %p')
             return value.isoformat()
         return value
 
@@ -221,6 +221,82 @@ def user_reservation_details():
     ]
 
     return jsonify({"reservations": reservations})
+
+@app.route('/availability_graph', methods=['GET'])
+def availability_graph():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Count how many slots were booked per hour today
+    cursor.execute("""
+        SELECT HOUR(time) as hour, COUNT(*) as count
+        FROM reservations
+        WHERE date = CURDATE()
+        GROUP BY hour
+        ORDER BY hour
+    """)
+    data = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    # Assume max capacity is 10 per hour for example (adjust to your real capacity)
+    max_capacity = 10
+    availability = []
+    for h in range(6, 22):  # From 6AM to 9PM
+        booked = next((row[1] for row in data if row[0] == h), 0)
+        probability = max(0, min(1, 1 - (booked / max_capacity)))
+        availability.append({"hour": h, "availability": round(probability, 2)})
+
+    return jsonify({"predictions": availability})
+
+@app.route('/weekly_availability', methods=['GET'])
+def weekly_availability():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Count bookings grouped by day of week and hour
+    cursor.execute("""
+        SELECT DAYOFWEEK(date) AS weekday, HOUR(time) AS hour, COUNT(*) AS count
+        FROM reservations
+        GROUP BY weekday, hour
+    """)
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    max_capacity = 10
+    # Initialize availability data structure (7 days x 11 hours)
+    data = {day: {hour: 1.0 for hour in range(8, 19)} for day in range(1, 8)}
+
+    for day, hour, count in rows:
+        if 8 <= hour <= 18:
+            probability = max(0, min(1, 1 - (count / max_capacity)))
+            data[day][hour] = round(probability, 2)
+
+    return jsonify({"availability": data})
+
+@app.route('/daily_availability', methods=['GET'])
+def daily_availability():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT DAYOFWEEK(date) AS weekday, COUNT(*) AS count
+        FROM reservations
+        GROUP BY weekday
+    """)
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    max_per_day = 10 * 11  # 10 slots/hour × 11 hours (8am–6pm)
+    data = {i: 1.0 for i in range(1, 8)}  # 1=Sun...7=Sat
+
+    for day, count in rows:
+        availability = max(0, min(1, 1 - count / max_per_day))
+        data[day] = round(availability, 2)
+
+    return jsonify({"availability": data})
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
