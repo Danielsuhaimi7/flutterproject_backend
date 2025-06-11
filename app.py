@@ -279,7 +279,6 @@ def weekly_availability():
 def daily_availability():
     conn = get_connection()
     cursor = conn.cursor()
-
     cursor.execute("""
         SELECT DAYOFWEEK(date) AS weekday, COUNT(*) AS count
         FROM reservations
@@ -289,8 +288,8 @@ def daily_availability():
     cursor.close()
     conn.close()
 
-    max_per_day = 10 * 11  # 10 slots/hour × 11 hours (8am–6pm)
-    data = {i: 1.0 for i in range(1, 8)}  # 1=Sun...7=Sat
+    max_per_day = 10 * 11  # 10 slots/hour x 11 hours/day
+    data = {i: 1.0 for i in range(1, 8)}
 
     for day, count in rows:
         availability = max(0, min(1, 1 - count / max_per_day))
