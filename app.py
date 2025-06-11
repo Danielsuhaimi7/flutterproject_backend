@@ -338,6 +338,22 @@ def get_parkings():
     ]
     return jsonify({"status": "success", "parkings": data})
 
+@app.route('/save_parking_layout', methods=['POST'])
+def save_parking_layout():
+    data = request.json
+    parking_id = data['parking_id']
+    slot_count = data['slot_count']
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE parkings SET slot_count = %s WHERE id = %s
+    """, (slot_count, parking_id))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    return jsonify({"status": "success", "message": "Layout saved"})
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
