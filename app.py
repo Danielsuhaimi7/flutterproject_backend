@@ -297,5 +297,41 @@ def daily_availability():
 
     return jsonify({"availability": data})
 
+@app.route('/add_parking', methods=['POST'])
+def add_parking():
+    data = request.json
+    latitude = data.get('latitude')
+    longitude = data.get('longitude')
+
+    if latitude is None or longitude is None:
+        return jsonify({'status': 'fail', 'message': 'Invalid coordinates'}), 400
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO parking_locations (latitude, longitude)
+        VALUES (%s, %s)
+    """, (latitude, longitude))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    return jsonify({'status': 'success', 'message': 'Parking location added'})
+
+@app.route('/get_parking_locations', methods=['GET'])
+def get_parking_locations():
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, latitude, longitude FROM parking_locations")
+    results = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    locations = [
+        {'id': row[0], 'latitude': row[1], 'longitude': row[2]}
+        for row in results
+    ]
+    return jsonify({'locations': locations})
+
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
