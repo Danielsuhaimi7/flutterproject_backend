@@ -297,41 +297,47 @@ def daily_availability():
 
     return jsonify({"availability": data})
 
-@app.route('/add_parking', methods=['POST'])
-def add_parking():
+@app.route('/add_parking_location', methods=['POST'])
+def add_parking_location():
     data = request.json
+    name = data.get('name')
     latitude = data.get('latitude')
     longitude = data.get('longitude')
 
-    if latitude is None or longitude is None:
-        return jsonify({'status': 'fail', 'message': 'Invalid coordinates'}), 400
+    if not all([name, latitude, longitude]):
+        return jsonify({"status": "fail", "message": "Missing required fields"}), 400
 
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO parking_locations (latitude, longitude)
-        VALUES (%s, %s)
-    """, (latitude, longitude))
-    conn.commit()
-    cursor.close()
-    conn.close()
-
-    return jsonify({'status': 'success', 'message': 'Parking location added'})
-
-@app.route('/get_parking_locations', methods=['GET'])
-def get_parking_locations():
+    try:
+        cursor.execute("""
+            INSERT INTO parkings (name, latitude, longitude)
+            VALUES (%s, %s, %s)
+        """, (name, latitude, longitude))
+        conn.commit()
+        return jsonify({"status": "success"})
+    except Exception as e:
+        print("DB Error:", e)
+        return jsonify({"status": "fail", "message": "Database error"}), 500
+    finally:
+        cursor.close()
+        conn.close()
+        
+@app.route('/get_parkings', methods=['GET'])
+def get_parkings():
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, latitude, longitude FROM parking_locations")
-    results = cursor.fetchall()
+    cursor.execute("SELECT name, latitude, longitude FROM parkings")
+    rows = cursor.fetchall()
     cursor.close()
     conn.close()
 
-    locations = [
-        {'id': row[0], 'latitude': row[1], 'longitude': row[2]}
-        for row in results
+    data = [
+        {"name": row[0], "latitude": row[1], "longitude": row[2]}
+        for row in rows
     ]
-    return jsonify({'locations': locations})
+    return jsonify({"status": "success", "parkings": data})
+
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
