@@ -343,7 +343,6 @@ def save_parking_layout():
     data = request.json
     parking_id = data['parking_id']
     slot_count = data['slot_count']
-
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
