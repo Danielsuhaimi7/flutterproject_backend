@@ -354,5 +354,28 @@ def save_parking_layout():
 
     return jsonify({"status": "success", "message": "Layout saved"})
 
+@app.route('/get_user_info', methods=['POST'])
+def get_user_info():
+    data = request.json
+    student_id = data.get('student_id')
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT name, email, phone FROM users WHERE student_id = %s
+    """, (student_id,))
+    user = cursor.fetchone()
+    cursor.close()
+    conn.close()
+
+    if user:
+        return jsonify({
+            "name": user[0],
+            "email": user[1],
+            "phone": user[2]
+        })
+    else:
+        return jsonify({"error": "User not found"}), 404
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
