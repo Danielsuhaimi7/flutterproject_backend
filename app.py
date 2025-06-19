@@ -542,6 +542,18 @@ def all_reports():
 @app.route('/uploads/<path:filename>')
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+@app.route('/mark_report_settled', methods=['POST'])
+def mark_report_settled():
+    data = request.json
+    report_id = data.get('report_id')
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE parking_reports SET settled = 1 WHERE id = %s", (report_id,))
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return jsonify({"status": "success"})
     
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
