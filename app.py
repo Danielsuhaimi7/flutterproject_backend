@@ -7,6 +7,7 @@ import pickle
 import numpy as np
 from werkzeug.utils import secure_filename
 from datetime import timedelta, date, time, datetime
+from flask import send_from_directory
 
 app = Flask(__name__)
 CORS(app)
@@ -55,7 +56,7 @@ def register():
     email = data['email']
     password = data['password']
     phone = data['phone']
-    role = data.get('role', 'user')  # Default to 'user'
+    role = data.get('role', 'user')
 
     conn = get_connection()
     cursor = conn.cursor()
@@ -75,6 +76,7 @@ def submit_report():
     name = request.form.get('name')
     parking_location = request.form.get('parking_location')
     report_type = request.form.get('report_type')
+    slot = request.form.get('slot')
     file = request.files.get('file')
 
     image_path = None
@@ -86,9 +88,9 @@ def submit_report():
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        INSERT INTO parking_reports (student_id, name, parking_location, report_type, image_path)
-        VALUES (%s, %s, %s, %s, %s)
-    """, (student_id, name, parking_location, report_type, image_path))
+        INSERT INTO parking_reports (student_id, name, parking_location, report_type, image_path, slot)
+        VALUES (%s, %s, %s, %s, %s, %s)
+    """, (student_id, name, parking_location, report_type, image_path, slot))
     conn.commit()
     cursor.close()
     conn.close()
@@ -206,7 +208,6 @@ def user_reservation_details():
     cursor.close()
     conn.close()
 
-    # ✅ Updated: Serialize safely and format time to AM/PM
     def serialize_value(key, value):
         if isinstance(value, timedelta):
             return int(value.total_seconds() // 3600)
@@ -228,7 +229,6 @@ def availability_graph():
     conn = get_connection()
     cursor = conn.cursor()
 
-    # Count how many slots were booked per hour today
     cursor.execute("""
         SELECT HOUR(time) as hour, COUNT(*) as count
         FROM reservations
@@ -240,10 +240,9 @@ def availability_graph():
     cursor.close()
     conn.close()
 
-    # Assume max capacity is 10 per hour for example (adjust to your real capacity)
     max_capacity = 10
     availability = []
-    for h in range(6, 22):  # From 6AM to 9PM
+    for h in range(6, 22):
         booked = next((row[1] for row in data if row[0] == h), 0)
         probability = max(0, min(1, 1 - (booked / max_capacity)))
         availability.append({"hour": h, "availability": round(probability, 2)})
@@ -255,7 +254,6 @@ def weekly_availability():
     conn = get_connection()
     cursor = conn.cursor()
 
-    # Count bookings grouped by day of week and hour
     cursor.execute("""
         SELECT DAYOFWEEK(date) AS weekday, HOUR(time) AS hour, COUNT(*) AS count
         FROM reservations
@@ -266,7 +264,6 @@ def weekly_availability():
     conn.close()
 
     max_capacity = 10
-    # Initialize availability data structure (7 days x 11 hours)
     data = {day: {hour: 1.0 for hour in range(8, 19)} for day in range(1, 8)}
 
     for day, hour, count in rows:
@@ -289,7 +286,7 @@ def daily_availability():
     cursor.close()
     conn.close()
 
-    max_per_day = 10 * 11  # 10 slots/hour x 11 hours/day
+    max_per_day = 10 * 11 
     data = {i: 1.0 for i in range(1, 8)}
 
     for day, count in rows:
@@ -428,7 +425,6 @@ def reserve_custom_slot():
         conn = get_connection()
         cursor = conn.cursor()
 
-        # Save as custom_reservations table (create if not exists)
         cursor.execute("""
             INSERT INTO custom_reservations (student_id, parking_name, slot_index, date, time, duration)
             VALUES (%s, %s, %s, %s, %s, %s)
@@ -521,6 +517,31 @@ def delete_user():
     conn.close()
 
     return jsonify({'status': 'success'})
+
+@app.route('/all_reports', methods=['GET'])
+def all_reports():
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT id, student_id, name, parking_location, report_type, slot, image_path, created_at
+        FROM parking_reports
+        ORDER BY created_at DESC
+    """)
+    reports = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    for report in reports:
+        if report['image_path']:
+            report['image_url'] = f"http://192.168.1.110:5000/uploads/{os.path.basename(report['image_path'])}"
+        else:
+            report['image_url'] = None
+
+    return jsonify({"reports": reports})
+
+@app.route('/uploads/<path:filename>')
+def uploaded_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
     
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
