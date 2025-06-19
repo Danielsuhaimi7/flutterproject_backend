@@ -466,5 +466,61 @@ def get_booked_custom_slots():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
+@app.route('/users', methods=['GET'])
+def get_all_users():
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT student_id, name, email, phone, role FROM users")
+    users = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    return jsonify({"users": users})
+
+@app.route('/edit_user', methods=['POST'])
+def edit_user():
+    data = request.get_json()
+    student_id = data.get('student_id')
+    name = data.get('name')
+    email = data.get('email')
+    phone = data.get('phone')
+    role = data.get('role')
+
+    if not student_id:
+        return jsonify({'status': 'fail', 'message': 'Missing student_id'}), 400
+
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE users
+            SET name = %s, email = %s, phone = %s, role = %s
+            WHERE student_id = %s
+        """, (name, email, phone, role, student_id))
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        return jsonify({'status': 'fail', 'message': str(e)}), 500
+
+@app.route('/delete_user', methods=['POST'])
+def delete_user():
+    data = request.json
+    student_id = data.get('student_id')
+
+    if not student_id:
+        return jsonify({'status': 'fail', 'message': 'Missing student_id'}), 400
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM users WHERE student_id = %s", (student_id,))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    return jsonify({'status': 'success'})
+    
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
