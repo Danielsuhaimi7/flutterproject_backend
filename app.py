@@ -1,3 +1,4 @@
+import json
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from db import get_connection
@@ -376,6 +377,42 @@ def get_user_info():
         })
     else:
         return jsonify({"error": "User not found"}), 404
+    
+@app.route('/save_custom_layout', methods=['POST'])
+def save_custom_layout():
+    try:
+        data = request.get_json()
+        parking_name = data.get('parking_name')
+        layout = data.get('layout')
 
+        if not parking_name or not layout:
+            return jsonify({'status': 'fail', 'message': 'Missing data'}), 400
+
+        os.makedirs('custom_layouts', exist_ok=True)  # Ensure folder exists
+
+        with open(f'custom_layouts/{parking_name}.json', 'w') as f:
+            json.dump(layout, f)
+
+        print(f"[✔] Layout for '{parking_name}' saved.")
+        return jsonify({'status': 'success'})
+
+    except Exception as e:
+        print("[✘] Save layout error:", e)
+        return jsonify({'status': 'fail', 'message': str(e)}), 500
+
+@app.route("/get_custom_layout", methods=["POST"])
+def get_custom_layout():
+    data = request.get_json()
+    parking_name = data.get("parking_name")
+
+    try:
+        with open(f'custom_layouts/{parking_name}.json', 'r') as f:
+            layout = json.load(f)
+        return jsonify({"layout": layout})
+    except FileNotFoundError:
+        return jsonify({"layout": []})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
