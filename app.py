@@ -414,5 +414,57 @@ def get_custom_layout():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
+@app.route('/reserve_custom_slot', methods=['POST'])
+def reserve_custom_slot():
+    data = request.json
+    student_id = data.get('student_id')
+    parking_name = data.get('parking_name')
+    slot_index = data.get('slot_index')
+    date = data.get('date')
+    time = data.get('time')
+    duration = data.get('duration')
+
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        # Save as custom_reservations table (create if not exists)
+        cursor.execute("""
+            INSERT INTO custom_reservations (student_id, parking_name, slot_index, date, time, duration)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (student_id, parking_name, slot_index, date, time, duration))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        print("[✘] reserve_custom_slot error:", e)
+        return jsonify({'status': 'fail', 'message': str(e)}), 500
+    
+@app.route('/get_booked_custom_slots', methods=['POST'])
+def get_booked_custom_slots():
+    data = request.get_json()
+    parking_name = data.get('parking_name')
+    date = data.get('date')
+    time = data.get('time')
+
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT slot_index FROM custom_reservations
+            WHERE parking_name = %s AND date = %s AND time <= %s
+              AND ADDTIME(time, SEC_TO_TIME(duration * 3600)) > %s
+        """, (parking_name, date, time, time))
+        results = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        booked = [r[0] for r in results]
+        return jsonify({"booked": booked})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
