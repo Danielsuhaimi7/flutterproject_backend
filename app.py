@@ -523,7 +523,7 @@ def all_reports():
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
     cursor.execute("""
-        SELECT id, student_id, name, parking_location, report_type, slot, image_path, created_at
+        SELECT id, student_id, name, parking_location, report_type, slot, image_path, created_at, settled
         FROM parking_reports
         ORDER BY created_at DESC
     """)
