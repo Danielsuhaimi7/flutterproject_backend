@@ -554,6 +554,52 @@ def mark_report_settled():
     cursor.close()
     conn.close()
     return jsonify({"status": "success"})
-    
+
+@app.route('/user_all_reservations', methods=['POST'])
+def user_all_reservations():
+    data = request.json
+    student_id = data.get('student_id')
+
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    cursor.execute("""
+        SELECT 'standard' AS type, slot_code AS slot_code, date, time, duration, NULL AS parking_name
+        FROM reservations
+        WHERE student_id = %s
+    """, (student_id,))
+    standard = cursor.fetchall()
+
+    cursor.execute("""
+        SELECT 'custom' AS type, slot_index, date, time, duration, parking_name
+        FROM custom_reservations
+        WHERE student_id = %s
+    """, (student_id,))
+    custom = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    for c in custom:
+        c['slot_code'] = f"A{c['slot_index'] + 1}"
+
+    combined = standard + custom
+    combined.sort(key=lambda x: (x['date'], x['time']), reverse=True)
+
+    def serialize_reservation(res):
+        for k, v in res.items():
+            if isinstance(v, timedelta):
+                res[k] = int(v.total_seconds() // 3600)
+            elif isinstance(v, (datetime, date)) and k == "date":
+                res[k] = v.strftime('%Y-%m-%d')
+            elif isinstance(v, (datetime, time)) and k == "time":
+                res[k] = v.strftime('%H:%M:%S')
+        return res
+
+    combined = [serialize_reservation(r) for r in combined]
+
+    # ✅ This was missing
+    return jsonify({'reservations': combined})
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
