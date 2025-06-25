@@ -518,6 +518,8 @@ def delete_user():
 
     return jsonify({'status': 'success'})
 
+from flask import request  # Make sure this is already imported
+
 @app.route('/all_reports', methods=['GET'])
 def all_reports():
     conn = get_connection()
@@ -533,11 +535,13 @@ def all_reports():
 
     for report in reports:
         if report['image_path']:
-            report['image_url'] = f"http://192.168.1.110:5000/uploads/{os.path.basename(report['image_path'])}"
+            filename = os.path.basename(report['image_path'])
+            report['image_url'] = f"{request.host_url}uploads/{filename}"
         else:
             report['image_url'] = None
 
     return jsonify({"reports": reports})
+
 
 @app.route('/uploads/<path:filename>')
 def uploaded_file(filename):
@@ -601,5 +605,28 @@ def user_all_reservations():
     # ✅ This was missing
     return jsonify({'reservations': combined})
 
+@app.route('/delete_parking_location', methods=['POST'])
+def delete_parking_location():
+    data = request.get_json()
+    parking_name = data.get('parking_name')
+
+    if not parking_name:
+        return jsonify({"status": "fail", "message": "Missing parking name"}), 400
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+        # You can also use a foreign key constraint with ON DELETE CASCADE if needed
+        cursor.execute("DELETE FROM parkings WHERE name = %s", (parking_name,))
+        conn.commit()
+        return jsonify({"status": "success", "message": f"'{parking_name}' deleted"})
+    except Exception as e:
+        print("[✘] Delete parking error:", e)
+        return jsonify({"status": "fail", "message": str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=5000)  
