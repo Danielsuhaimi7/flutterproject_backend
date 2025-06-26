@@ -714,24 +714,25 @@ def predict_availability():
     total_count = 0
 
     if parking_name == "Sky Park":
-        # Standard reservation check
+        # ✅ Standard reservation check — last 30 days only
         cursor.execute("""
             SELECT COUNT(*) FROM reservations
-            WHERE HOUR(time) = %s AND DAYOFWEEK(date) = %s
+            WHERE HOUR(time) = %s AND DAYOFWEEK(date) = %s AND date >= CURDATE() - INTERVAL 30 DAY
         """, (hour, weekday))
         total_count = cursor.fetchone()[0]
     else:
-        # Custom reservation check
+        # ✅ Custom reservation check — last 30 days only
         cursor.execute("""
             SELECT COUNT(*) FROM custom_reservations
             WHERE HOUR(time) = %s AND DAYOFWEEK(date) = %s AND parking_name = %s
+              AND date >= CURDATE() - INTERVAL 30 DAY
         """, (hour, weekday, parking_name))
         total_count = cursor.fetchone()[0]
 
     cursor.close()
     conn.close()
 
-    max_capacity = 10  # Can also be dynamic per location
+    max_capacity = 10  # This can be adjusted or fetched dynamically per location if needed
     availability = max(0, min(1, 1 - total_count / max_capacity))
 
     return jsonify({"availability": availability})
