@@ -254,22 +254,42 @@ def weekly_availability():
     conn = get_connection()
     cursor = conn.cursor()
 
+    # Fetch standard reservations
     cursor.execute("""
         SELECT DAYOFWEEK(date) AS weekday, HOUR(time) AS hour, COUNT(*) AS count
         FROM reservations
         GROUP BY weekday, hour
     """)
-    rows = cursor.fetchall()
+    rows_std = cursor.fetchall()
+
+    # Fetch custom reservations
+    cursor.execute("""
+        SELECT DAYOFWEEK(date) AS weekday, HOUR(time) AS hour, COUNT(*) AS count
+        FROM custom_reservations
+        GROUP BY weekday, hour
+    """)
+    rows_custom = cursor.fetchall()
+
     cursor.close()
     conn.close()
 
-    max_capacity = 10
+    max_capacity = 10  # Adjust per location if needed
+
+    # Initialize all time slots (8 AM to 6 PM)
     data = {day: {hour: 1.0 for hour in range(8, 19)} for day in range(1, 8)}
 
-    for day, hour, count in rows:
+    # Combine and count total bookings
+    combined_counts = {}
+
+    for row in rows_std + rows_custom:
+        day, hour, count = row
         if 8 <= hour <= 18:
-            probability = max(0, min(1, 1 - (count / max_capacity)))
-            data[day][hour] = round(probability, 2)
+            combined_counts[(day, hour)] = combined_counts.get((day, hour), 0) + count
+
+    # Calculate probabilities
+    for (day, hour), count in combined_counts.items():
+        probability = max(0, min(1, 1 - (count / max_capacity)))
+        data[day][hour] = round(probability, 2)
 
     return jsonify({"availability": data})
 
