@@ -627,6 +627,100 @@ def delete_parking_location():
     finally:
         cursor.close()
         conn.close()
+        
+@app.route('/predict_availability', methods=['POST'])
+def predict_availability():
+    data = request.json
+    parking_name = data.get("location")
+    hour = int(data.get("hour"))
+    weekday = int(data.get("weekday"))
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    total_count = 0
+
+    if parking_name == "Sky Park":
+        # Standard reservation check
+        cursor.execute("""
+            SELECT COUNT(*) FROM reservations
+            WHERE HOUR(time) = %s AND DAYOFWEEK(date) = %s
+        """, (hour, weekday))
+        total_count = cursor.fetchone()[0]
+    else:
+        # Custom reservation check
+        cursor.execute("""
+            SELECT COUNT(*) FROM custom_reservations
+            WHERE HOUR(time) = %s AND DAYOFWEEK(date) = %s AND parking_name = %s
+        """, (hour, weekday, parking_name))
+        total_count = cursor.fetchone()[0]
+
+    cursor.close()
+    conn.close()
+
+    max_capacity = 10  # Can also be dynamic per location
+    availability = max(0, min(1, 1 - total_count / max_capacity))
+
+    return jsonify({"availability": availability})
+
+@app.route('/monthly_availability', methods=['POST'])
+def monthly_availability():
+    data = request.json
+    parking_name = data.get("location")
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT MONTH(date) AS month, COUNT(*) FROM reservations
+        WHERE slot_code IN (
+            SELECT CONCAT('A', slot_index + 1)
+            FROM custom_reservations
+            WHERE parking_name = %s
+        )
+        GROUP BY MONTH(date)
+    """, (parking_name,))
+    std = dict(cursor.fetchall())
+
+    cursor.execute("""
+        SELECT MONTH(date) AS month, COUNT(*) FROM custom_reservations
+        WHERE parking_name = %s
+        GROUP BY MONTH(date)
+    """, (parking_name,))
+    cus = dict(cursor.fetchall())
+
+    max_per_month = 10 * 30  # assume 10 slots × 30 days
+    result = {}
+
+    for m in range(1, 13):
+        count = std.get(m, 0) + cus.get(m, 0)
+        result[m] = round(max(0, min(1, 1 - count / max_per_month)), 2)
+
+    cursor.close()
+    conn.close()
+
+    return jsonify({"availability": result})
+
+@app.route('/get_parking_locations', methods=['GET'])
+def get_parking_locations():
+    try:
+        # Static location(s)
+        static_locations = ["Sky Park"]
+
+        # Custom locations from `custom_layouts/` folder
+        custom_locations = []
+        custom_dir = 'custom_layouts'
+        if os.path.exists(custom_dir):
+            for filename in os.listdir(custom_dir):
+                if filename.endswith('.json'):
+                    name = os.path.splitext(filename)[0]
+                    custom_locations.append(name)
+
+        all_locations = static_locations + custom_locations
+        return jsonify({"locations": all_locations})
+    except Exception as e:
+        print("[✘] get_parking_locations error:", e)
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)  
