@@ -251,47 +251,100 @@ def availability_graph():
 
 @app.route('/weekly_availability', methods=['GET'])
 def weekly_availability():
-    conn = get_connection()
-    cursor = conn.cursor()
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
 
-    # Fetch standard reservations
-    cursor.execute("""
-        SELECT DAYOFWEEK(date) AS weekday, HOUR(time) AS hour, COUNT(*) AS count
-        FROM reservations
-        GROUP BY weekday, hour
-    """)
-    rows_std = cursor.fetchall()
+        # Fetch standard reservations
+        cursor.execute("""
+            SELECT DAYOFWEEK(date) AS weekday, HOUR(time) AS hour, COUNT(*) AS count
+            FROM reservations
+            GROUP BY weekday, hour
+        """)
+        rows_std = cursor.fetchall()
 
-    # Fetch custom reservations
-    cursor.execute("""
-        SELECT DAYOFWEEK(date) AS weekday, HOUR(time) AS hour, COUNT(*) AS count
-        FROM custom_reservations
-        GROUP BY weekday, hour
-    """)
-    rows_custom = cursor.fetchall()
+        # Fetch custom reservations
+        cursor.execute("""
+            SELECT DAYOFWEEK(date) AS weekday, HOUR(time) AS hour, COUNT(*) AS count
+            FROM custom_reservations
+            GROUP BY weekday, hour
+        """)
+        rows_custom = cursor.fetchall()
 
-    cursor.close()
-    conn.close()
+        cursor.close()
+        conn.close()
 
-    max_capacity = 10  # Adjust per location if needed
+        max_capacity = 10  # Adjust per parking lot if needed
 
-    # Initialize all time slots (8 AM to 6 PM)
-    data = {day: {hour: 1.0 for hour in range(8, 19)} for day in range(1, 8)}
+        # Initialize structure: availability from 8 AM to 6 PM (8–18)
+        data = {day: {hour: 1.0 for hour in range(8, 19)} for day in range(1, 8)}
 
-    # Combine and count total bookings
-    combined_counts = {}
+        # Combine and count total bookings from both standard and custom reservations
+        combined_counts = {}
 
-    for row in rows_std + rows_custom:
-        day, hour, count = row
-        if 8 <= hour <= 18:
-            combined_counts[(day, hour)] = combined_counts.get((day, hour), 0) + count
+        for row in rows_std + rows_custom:
+            day, hour, count = row
+            if 8 <= hour <= 18:
+                key = (day, hour)
+                combined_counts[key] = combined_counts.get(key, 0) + count
 
-    # Calculate probabilities
-    for (day, hour), count in combined_counts.items():
-        probability = max(0, min(1, 1 - (count / max_capacity)))
-        data[day][hour] = round(probability, 2)
+        # Calculate availability probabilities
+        for (day, hour), count in combined_counts.items():
+            availability = max(0, min(1, 1 - (count / max_capacity)))
+            data[day][hour] = round(availability, 2)
 
-    return jsonify({"availability": data})
+        return jsonify({"availability": data})
+
+    except Exception as e:
+        print("❌ Error in /weekly_availability:", e)
+        return jsonify({"error": str(e)}), 500
+    
+@app.route('/weekly_availability_by_location', methods=['POST'])
+def weekly_availability_by_location():
+    try:
+        data = request.get_json()
+        parking_name = data.get("location")
+
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        max_capacity = 10  
+        
+        availability_data = {day: {hour: 1.0 for hour in range(8, 19)} for day in range(1, 8)}
+        combined_counts = {}
+
+        if parking_name == "Sky Park":
+            cursor.execute("""
+                SELECT DAYOFWEEK(date), HOUR(time), COUNT(*) 
+                FROM reservations
+                WHERE YEARWEEK(date, 1) = YEARWEEK(CURDATE(), 1)
+                GROUP BY DAYOFWEEK(date), HOUR(time)
+            """)
+        else:
+            cursor.execute("""
+                SELECT DAYOFWEEK(date), HOUR(time), COUNT(*) 
+                FROM custom_reservations
+                WHERE LOWER(parking_name) = LOWER(%s)
+                AND YEARWEEK(date, 1) = YEARWEEK(CURDATE(), 1)
+                GROUP BY DAYOFWEEK(date), HOUR(time)
+            """, (parking_name,))
+
+        rows = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        for day, hour, count in rows:
+            if 8 <= hour <= 18:
+                combined_counts[(day, hour)] = combined_counts.get((day, hour), 0) + count
+
+        for (day, hour), count in combined_counts.items():
+            prob = max(0, min(1, 1 - count / max_capacity))
+            availability_data[day][hour] = round(prob, 2)
+
+        return jsonify({"availability": availability_data})
+
+    except Exception as e:
+        return jsonify({"error": "Internal server error"}), 500
 
 @app.route('/daily_availability', methods=['GET'])
 def daily_availability():
