@@ -16,7 +16,6 @@ UPLOAD_FOLDER = 'uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# Load AI model once at startup
 model_path = 'model.pkl'
 model = pickle.load(open(model_path, 'rb'))
 
@@ -255,7 +254,6 @@ def weekly_availability():
         conn = get_connection()
         cursor = conn.cursor()
 
-        # Fetch standard reservations
         cursor.execute("""
             SELECT DAYOFWEEK(date) AS weekday, HOUR(time) AS hour, COUNT(*) AS count
             FROM reservations
@@ -263,7 +261,6 @@ def weekly_availability():
         """)
         rows_std = cursor.fetchall()
 
-        # Fetch custom reservations
         cursor.execute("""
             SELECT DAYOFWEEK(date) AS weekday, HOUR(time) AS hour, COUNT(*) AS count
             FROM custom_reservations
@@ -274,12 +271,10 @@ def weekly_availability():
         cursor.close()
         conn.close()
 
-        max_capacity = 10  # Adjust per parking lot if needed
+        max_capacity = 10
 
-        # Initialize structure: availability from 8 AM to 6 PM (8–18)
         data = {day: {hour: 1.0 for hour in range(8, 19)} for day in range(1, 8)}
 
-        # Combine and count total bookings from both standard and custom reservations
         combined_counts = {}
 
         for row in rows_std + rows_custom:
@@ -288,7 +283,6 @@ def weekly_availability():
                 key = (day, hour)
                 combined_counts[key] = combined_counts.get(key, 0) + count
 
-        # Calculate availability probabilities
         for (day, hour), count in combined_counts.items():
             availability = max(0, min(1, 1 - (count / max_capacity)))
             data[day][hour] = round(availability, 2)
@@ -458,7 +452,7 @@ def save_custom_layout():
         if not parking_name or not layout:
             return jsonify({'status': 'fail', 'message': 'Missing data'}), 400
 
-        os.makedirs('custom_layouts', exist_ok=True)  # Ensure folder exists
+        os.makedirs('custom_layouts', exist_ok=True)
 
         with open(f'custom_layouts/{parking_name}.json', 'w') as f:
             json.dump(layout, f)
@@ -591,7 +585,7 @@ def delete_user():
 
     return jsonify({'status': 'success'})
 
-from flask import request  # Make sure this is already imported
+from flask import request
 
 @app.route('/all_reports', methods=['GET'])
 def all_reports():
@@ -690,7 +684,6 @@ def delete_parking_location():
     cursor = conn.cursor()
 
     try:
-        # You can also use a foreign key constraint with ON DELETE CASCADE if needed
         cursor.execute("DELETE FROM parkings WHERE name = %s", (parking_name,))
         conn.commit()
         return jsonify({"status": "success", "message": f"'{parking_name}' deleted"})
@@ -714,14 +707,12 @@ def predict_availability():
     total_count = 0
 
     if parking_name == "Sky Park":
-        # ✅ Standard reservation check — last 30 days only
         cursor.execute("""
             SELECT COUNT(*) FROM reservations
             WHERE HOUR(time) = %s AND DAYOFWEEK(date) = %s AND date >= CURDATE() - INTERVAL 30 DAY
         """, (hour, weekday))
         total_count = cursor.fetchone()[0]
     else:
-        # ✅ Custom reservation check — last 30 days only
         cursor.execute("""
             SELECT COUNT(*) FROM custom_reservations
             WHERE HOUR(time) = %s AND DAYOFWEEK(date) = %s AND parking_name = %s
@@ -732,7 +723,7 @@ def predict_availability():
     cursor.close()
     conn.close()
 
-    max_capacity = 10  # This can be adjusted or fetched dynamically per location if needed
+    max_capacity = 10
     availability = max(0, min(1, 1 - total_count / max_capacity))
 
     return jsonify({"availability": availability})
@@ -763,7 +754,7 @@ def monthly_availability():
     """, (parking_name,))
     cus = dict(cursor.fetchall())
 
-    max_per_month = 10 * 30  # assume 10 slots × 30 days
+    max_per_month = 10 * 30
     result = {}
 
     for m in range(1, 13):
@@ -778,10 +769,8 @@ def monthly_availability():
 @app.route('/get_parking_locations', methods=['GET'])
 def get_parking_locations():
     try:
-        # Static location(s)
         static_locations = ["Sky Park"]
 
-        # Custom locations from `custom_layouts/` folder
         custom_locations = []
         custom_dir = 'custom_layouts'
         if os.path.exists(custom_dir):
