@@ -704,29 +704,64 @@ def predict_availability():
     conn = get_connection()
     cursor = conn.cursor()
 
-    total_count = 0
+    try:
+        total_count = 0
+        weeks = 1
 
-    if parking_name == "Sky Park":
-        cursor.execute("""
-            SELECT COUNT(*) FROM reservations
-            WHERE HOUR(time) = %s AND DAYOFWEEK(date) = %s AND date >= CURDATE() - INTERVAL 30 DAY
-        """, (hour, weekday))
-        total_count = cursor.fetchone()[0]
-    else:
-        cursor.execute("""
-            SELECT COUNT(*) FROM custom_reservations
-            WHERE HOUR(time) = %s AND DAYOFWEEK(date) = %s AND parking_name = %s
-              AND date >= CURDATE() - INTERVAL 30 DAY
-        """, (hour, weekday, parking_name))
-        total_count = cursor.fetchone()[0]
+        if parking_name == "Sky Park":
+            cursor.execute("""
+                SELECT COUNT(*) FROM reservations
+                WHERE HOUR(time) = %s AND DAYOFWEEK(date) = %s
+                  AND date >= CURDATE() - INTERVAL 30 DAY
+            """, (hour, weekday))
+            total_count = cursor.fetchone()[0]
 
-    cursor.close()
-    conn.close()
+            cursor.execute("""
+                SELECT COUNT(DISTINCT date) FROM reservations
+                WHERE DAYOFWEEK(date) = %s
+                  AND date >= CURDATE() - INTERVAL 30 DAY
+            """, (weekday,))
+            weeks = cursor.fetchone()[0] or 1
 
-    max_capacity = 10
-    availability = max(0, min(1, 1 - total_count / max_capacity))
+            max_capacity = weeks * 20
 
-    return jsonify({"availability": availability})
+        else:
+            cursor.execute("""
+                SELECT COUNT(*) FROM custom_reservations
+                WHERE HOUR(time) = %s AND DAYOFWEEK(date) = %s
+                  AND parking_name = %s
+                  AND date >= CURDATE() - INTERVAL 30 DAY
+            """, (hour, weekday, parking_name))
+            total_count = cursor.fetchone()[0]
+
+            cursor.execute("""
+                SELECT COUNT(DISTINCT date) FROM custom_reservations
+                WHERE DAYOFWEEK(date) = %s
+                  AND parking_name = %s
+                  AND date >= CURDATE() - INTERVAL 30 DAY
+            """, (weekday, parking_name))
+            weeks = cursor.fetchone()[0] or 1
+
+            import os, json
+            layout_path = f"custom_layouts/{parking_name}.json"
+            if os.path.exists(layout_path):
+                with open(layout_path, 'r') as f:
+                    layout = json.load(f)
+                    num_slots = len(layout)
+            else:
+                num_slots = 10 
+
+            max_capacity = weeks * num_slots
+
+        availability = max(0, min(1, 1 - (total_count / max_capacity)))
+        return jsonify({"availability": availability})
+
+    except Exception as e:
+        print("[✘] Error in predict_availability:", e)
+        return jsonify({"error": str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
 
 @app.route('/monthly_availability', methods=['POST'])
 def monthly_availability():
