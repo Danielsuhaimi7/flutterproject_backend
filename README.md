@@ -21,7 +21,7 @@ Requirements:
 
 Installation:
 1. Clone the repository:
-git clone https://github.com/your-repo/smart-parking-system.git
+git clone https://github.com/Danielsuhaimi7/flutterproject_backend.git
 cd smart-parking-system/backend
 
 2. Install dependencies:
