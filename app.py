@@ -271,7 +271,7 @@ def weekly_availability():
         cursor.close()
         conn.close()
 
-        max_capacity = 10
+        max_capacity = 20
 
         data = {day: {hour: 1.0 for hour in range(8, 19)} for day in range(1, 8)}
 
@@ -302,12 +302,10 @@ def weekly_availability_by_location():
         conn = get_connection()
         cursor = conn.cursor()
 
-        max_capacity = 10  
-        
-        availability_data = {day: {hour: 1.0 for hour in range(8, 19)} for day in range(1, 8)}
-        combined_counts = {}
+        max_capacity = 20
 
         if parking_name == "Sky Park":
+            max_capacity = 20
             cursor.execute("""
                 SELECT DAYOFWEEK(date), HOUR(time), COUNT(*) 
                 FROM reservations
@@ -315,6 +313,15 @@ def weekly_availability_by_location():
                 GROUP BY DAYOFWEEK(date), HOUR(time)
             """)
         else:
+            try:
+                layout_path = f"custom_layouts/{parking_name}.json"
+                if os.path.exists(layout_path):
+                    with open(layout_path, 'r') as f:
+                        layout = json.load(f)
+                        max_capacity = len(layout)
+            except Exception as e:
+                print("[✘] Could not load layout:", e)
+
             cursor.execute("""
                 SELECT DAYOFWEEK(date), HOUR(time), COUNT(*) 
                 FROM custom_reservations
@@ -327,6 +334,9 @@ def weekly_availability_by_location():
         cursor.close()
         conn.close()
 
+        availability_data = {day: {hour: 1.0 for hour in range(8, 19)} for day in range(1, 8)}
+        combined_counts = {}
+
         for day, hour, count in rows:
             if 8 <= hour <= 18:
                 combined_counts[(day, hour)] = combined_counts.get((day, hour), 0) + count
@@ -338,6 +348,7 @@ def weekly_availability_by_location():
         return jsonify({"availability": availability_data})
 
     except Exception as e:
+        print("[✘] Error in weekly_availability_by_location:", e)
         return jsonify({"error": "Internal server error"}), 500
 
 @app.route('/daily_availability', methods=['GET'])
