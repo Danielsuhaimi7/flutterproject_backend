@@ -711,6 +711,7 @@ def predict_availability():
     parking_name = data.get("location")
     hour = int(data.get("hour"))
     weekday = int(data.get("weekday"))
+    mysql_weekday = (weekday % 7) + 1 
 
     conn = get_connection()
     cursor = conn.cursor()
@@ -724,14 +725,14 @@ def predict_availability():
                 SELECT COUNT(*) FROM reservations
                 WHERE HOUR(time) = %s AND DAYOFWEEK(date) = %s
                   AND date >= CURDATE() - INTERVAL 30 DAY
-            """, (hour, weekday))
+            """, (hour, mysql_weekday))
             total_count = cursor.fetchone()[0]
 
             cursor.execute("""
                 SELECT COUNT(DISTINCT date) FROM reservations
                 WHERE DAYOFWEEK(date) = %s
                   AND date >= CURDATE() - INTERVAL 30 DAY
-            """, (weekday,))
+            """, (mysql_weekday,))
             weeks = cursor.fetchone()[0] or 1
 
             max_capacity = weeks * 20
@@ -742,7 +743,7 @@ def predict_availability():
                 WHERE HOUR(time) = %s AND DAYOFWEEK(date) = %s
                   AND parking_name = %s
                   AND date >= CURDATE() - INTERVAL 30 DAY
-            """, (hour, weekday, parking_name))
+            """, (hour, mysql_weekday, parking_name))
             total_count = cursor.fetchone()[0]
 
             cursor.execute("""
@@ -750,7 +751,7 @@ def predict_availability():
                 WHERE DAYOFWEEK(date) = %s
                   AND parking_name = %s
                   AND date >= CURDATE() - INTERVAL 30 DAY
-            """, (weekday, parking_name))
+            """, (mysql_weekday, parking_name))
             weeks = cursor.fetchone()[0] or 1
 
             import os, json
@@ -760,7 +761,7 @@ def predict_availability():
                     layout = json.load(f)
                     num_slots = len(layout)
             else:
-                num_slots = 10 
+                num_slots = 10
 
             max_capacity = weeks * num_slots
 
